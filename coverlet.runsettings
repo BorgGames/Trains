@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat Code Coverage">
+        <Configuration>
+          <Format>cobertura</Format>
+          <Include>[Trains.Core]*</Include>
+          <Exclude>[xunit.*]*</Exclude>
+          <Exclude>[coverlet.*]*</Exclude>
+          <ExcludeByFile>**/GlobalUsings.cs</ExcludeByFile>
+          <ThresholdType>branch</ThresholdType>
+          <ThresholdStat>total</ThresholdStat>
+          <Threshold>80</Threshold>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>
