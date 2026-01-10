@@ -3,11 +3,11 @@ using Trains.Geometry;
 namespace Trains.Track;
 
 /// <summary>
-/// A curved segment between diagonally adjacent grid nodes (distance 0).
+/// A curved segment between diagonally adjacent grid nodes (length 1).
 /// The curvature is disambiguated by choosing whether the tangent at the start is along X or along Y first.
 /// </summary>
 public sealed class CurvedSegment : TrackSegment {
-    public CurvedSegment(string id, GridPoint a, GridPoint b, CurveBias bias) : base(id, a, b, distance: 0) {
+    public CurvedSegment(string id, GridPoint a, GridPoint b, CurveBias bias) : base(id, a, b) {
         int dx = b.X - a.X;
         int dy = b.Y - a.Y;
 
@@ -46,8 +46,7 @@ public sealed class CurvedSegment : TrackSegment {
             FromNode: this.A,
             ToNode: this.B,
             EntryHeading: entry,
-            ExitHeading: exit,
-            Distance: this.Distance
+            ExitHeading: exit
         );
         var bToA = aToB.Reverse();
 

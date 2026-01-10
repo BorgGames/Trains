@@ -53,26 +53,36 @@ public sealed class Turntable {
         var a = this.Ports[alignment.PortAIndex];
         var b = this.Ports[alignment.PortBIndex];
 
-        string segmentId = $"Turntable:{this.Id}";
+        // The turntable "bridge" is modeled as a chain of 2*Radius unit segments (length 1 each).
+        // Current implementation supports a straight bridge between opposite ports on the same row/column,
+        // passing through the turntable center, with length 2*Radius.
+        var (points, bridgeDirection) = GetBridgePointsAndDirection(a, b);
 
-        // Enter at A (heading toward the turntable), exit at B (heading away from the turntable), and vice versa.
-        yield return new DirectedTrackEdge(
-            SegmentId: segmentId,
-            FromNode: a.Point,
-            ToNode: b.Point,
-            EntryHeading: a.OutboundDirection.Opposite(),
-            ExitHeading: b.OutboundDirection,
-            Distance: 0
-        );
+        // Use stable segment ids for the physical bridge segments (independent of travel direction).
+        // Segment id uniqueness per unit is important: it allows multiple trains to occupy disjoint parts of the bridge
+        // and reuses normal segment-level collision/occupancy rules.
+        for (int i = 0; i < points.Count - 1; i++) {
+            string segmentId = $"Turntable:{this.Id}:{i}";
 
-        yield return new DirectedTrackEdge(
-            SegmentId: segmentId,
-            FromNode: b.Point,
-            ToNode: a.Point,
-            EntryHeading: b.OutboundDirection.Opposite(),
-            ExitHeading: a.OutboundDirection,
-            Distance: 0
-        );
+            var p0 = points[i];
+            var p1 = points[i + 1];
+
+            yield return new DirectedTrackEdge(
+                SegmentId: segmentId,
+                FromNode: p0,
+                ToNode: p1,
+                EntryHeading: bridgeDirection,
+                ExitHeading: bridgeDirection
+            );
+
+            yield return new DirectedTrackEdge(
+                SegmentId: segmentId,
+                FromNode: p1,
+                ToNode: p0,
+                EntryHeading: bridgeDirection.Opposite(),
+                ExitHeading: bridgeDirection.Opposite()
+            );
+        }
     }
 
     public bool ContainsStrictly(GridPoint p) {
@@ -122,7 +132,70 @@ public sealed class Turntable {
                 throw new ArgumentOutOfRangeException(nameof(Alignments), $"Alignment {i} PortBIndex is out of range.");
             if (a.PortAIndex == a.PortBIndex)
                 throw new ArgumentException($"Alignment {i} must connect two different ports.", nameof(Alignments));
+
+            // Ensure this alignment is representable as a straight bridge of length 2*Radius through Center.
+            var pa = this.Ports[a.PortAIndex];
+            var pb = this.Ports[a.PortBIndex];
+            _ = GetBridgePointsAndDirection(pa, pb);
         }
+    }
+
+    private (IReadOnlyList<GridPoint> points, Direction bridgeDirection) GetBridgePointsAndDirection(TurntablePort a, TurntablePort b) {
+        // Ports must be on opposite sides on a straight line through the center:
+        // - Either East/West ports at y == Center.Y, or North/South ports at x == Center.X.
+        // This matches a classic straight turntable bridge and guarantees total length 2*Radius.
+
+        bool aIsHorizontal = a.Point.Y == this.Center.Y && (a.OutboundDirection == Direction.East || a.OutboundDirection == Direction.West);
+        bool bIsHorizontal = b.Point.Y == this.Center.Y && (b.OutboundDirection == Direction.East || b.OutboundDirection == Direction.West);
+
+        bool aIsVertical = a.Point.X == this.Center.X && (a.OutboundDirection == Direction.North || a.OutboundDirection == Direction.South);
+        bool bIsVertical = b.Point.X == this.Center.X && (b.OutboundDirection == Direction.North || b.OutboundDirection == Direction.South);
+
+        if (aIsHorizontal && bIsHorizontal) {
+            // Must be on opposite sides at +/- Radius.
+            if (a.Point.X != this.Center.X + this.Radius && a.Point.X != this.Center.X - this.Radius)
+                throw new ArgumentException("Horizontal turntable ports must be at Center.X +/- Radius.", nameof(Ports));
+            if (b.Point.X != this.Center.X + this.Radius && b.Point.X != this.Center.X - this.Radius)
+                throw new ArgumentException("Horizontal turntable ports must be at Center.X +/- Radius.", nameof(Ports));
+            if (a.Point.X == b.Point.X)
+                throw new ArgumentException("Turntable alignment must connect opposite horizontal ports.", nameof(Alignments));
+
+            // Build points in increasing X order; forward direction is East.
+            int minX = Math.Min(a.Point.X, b.Point.X);
+            int maxX = Math.Max(a.Point.X, b.Point.X);
+            if (maxX - minX != 2 * this.Radius)
+                throw new ArgumentException("Turntable bridge must have length 2*Radius.", nameof(Alignments));
+
+            var pts = new List<GridPoint>(capacity: 2 * this.Radius + 1);
+            for (int x = minX; x <= maxX; x++)
+                pts.Add(new GridPoint(x, this.Center.Y));
+
+            return (pts, Direction.East);
+        }
+
+        if (aIsVertical && bIsVertical) {
+            // Must be on opposite sides at +/- Radius.
+            if (a.Point.Y != this.Center.Y + this.Radius && a.Point.Y != this.Center.Y - this.Radius)
+                throw new ArgumentException("Vertical turntable ports must be at Center.Y +/- Radius.", nameof(Ports));
+            if (b.Point.Y != this.Center.Y + this.Radius && b.Point.Y != this.Center.Y - this.Radius)
+                throw new ArgumentException("Vertical turntable ports must be at Center.Y +/- Radius.", nameof(Ports));
+            if (a.Point.Y == b.Point.Y)
+                throw new ArgumentException("Turntable alignment must connect opposite vertical ports.", nameof(Alignments));
+
+            // Build points in increasing Y order; forward direction is North.
+            int minY = Math.Min(a.Point.Y, b.Point.Y);
+            int maxY = Math.Max(a.Point.Y, b.Point.Y);
+            if (maxY - minY != 2 * this.Radius)
+                throw new ArgumentException("Turntable bridge must have length 2*Radius.", nameof(Alignments));
+
+            var pts = new List<GridPoint>(capacity: 2 * this.Radius + 1);
+            for (int y = minY; y <= maxY; y++)
+                pts.Add(new GridPoint(this.Center.X, y));
+
+            return (pts, Direction.North);
+        }
+
+        throw new ArgumentException("Turntable alignments must connect two horizontal ports (East/West) or two vertical ports (North/South) on the center line.", nameof(Alignments));
     }
 }
 

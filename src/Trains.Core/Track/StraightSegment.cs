@@ -3,10 +3,10 @@ using Trains.Geometry;
 namespace Trains.Track;
 
 /// <summary>
-/// A straight segment between two orthogonally adjacent grid nodes (distance 1).
+/// A straight segment between two orthogonally adjacent grid nodes (length 1).
 /// </summary>
 public sealed class StraightSegment : TrackSegment {
-    public StraightSegment(string id, GridPoint a, GridPoint b) : base(id, a, b, distance: 1) {
+    public StraightSegment(string id, GridPoint a, GridPoint b) : base(id, a, b) {
         int dx = b.X - a.X;
         int dy = b.Y - a.Y;
         bool isOrthogonalNeighbor = Math.Abs(dx) + Math.Abs(dy) == 1;
@@ -25,16 +25,14 @@ public sealed class StraightSegment : TrackSegment {
                 FromNode: this.A,
                 ToNode: this.B,
                 EntryHeading: dir,
-                ExitHeading: dir,
-                Distance: this.Distance
+                ExitHeading: dir
             ),
             new DirectedTrackEdge(
                 SegmentId: this.Id,
                 FromNode: this.B,
                 ToNode: this.A,
                 EntryHeading: dir.Opposite(),
-                ExitHeading: dir.Opposite(),
-                Distance: this.Distance
+                ExitHeading: dir.Opposite()
             ),
         };
     }

@@ -56,7 +56,7 @@ public sealed class SimplePuzzleTests {
         var state = new PuzzleState();
         state.Placements.Add(1, new VehiclePlacement(1, new[] { segments[0].GetDirectedEdges()[0] }));
 
-        // At (1,0) heading East, choose the curved option (index 1; index 0 is the straight segment).
+        // At (1,0) heading East, choose the curved option (switch ordering prefers straight first).
         state.SwitchStates[new TrackState(new GridPoint(1, 0), Direction.East)] = 1;
 
         var puzzle = new ShuntingPuzzle(track, new RollingStockSpec[] { engine }, state, new Goal(Array.Empty<SegmentGoal>()));
@@ -68,6 +68,8 @@ public sealed class SimplePuzzleTests {
         Assert.Equal(0, result.State!.SwitchStates[new TrackState(new GridPoint(1, 0), Direction.East)]);
         Assert.Equal(1, VehiclePlacement.CountUnitEdges(result.State.Placements[1].Edges));
         Assert.Contains(result.State.Placements[1].Edges, e => e.SegmentId == "C0");
-        Assert.Contains(result.State.Placements[1].Edges, e => e.SegmentId == "S2");
+
+        // Curve has length 1; reaching S2 requires another move.
+        Assert.DoesNotContain(result.State.Placements[1].Edges, e => e.SegmentId == "S2");
     }
 }

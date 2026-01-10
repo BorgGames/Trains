@@ -85,17 +85,17 @@ public sealed class CoverageEdgeCasesTests {
         private readonly Direction _entry;
 
         public FakeMultiEdgeSegment(string id, GridPoint from, Direction entry)
-            : base(id, from, new GridPoint(from.X + 100, from.Y), distance: 1) {
+            : base(id, from, new GridPoint(from.X + 100, from.Y)) {
             _entry = entry;
         }
 
         public override IReadOnlyList<DirectedTrackEdge> GetDirectedEdges() {
             // Four outgoing edges from the same (node, heading) to force a >3 switch.
             return new[] {
-                new DirectedTrackEdge(this.Id + "A", this.A, new GridPoint(1, 0), _entry, Direction.East, 1),
-                new DirectedTrackEdge(this.Id + "B", this.A, new GridPoint(0, 1), _entry, Direction.North, 1),
-                new DirectedTrackEdge(this.Id + "C", this.A, new GridPoint(0, -1), _entry, Direction.South, 1),
-                new DirectedTrackEdge(this.Id + "D", this.A, new GridPoint(-1, 0), _entry, Direction.West, 1),
+                new DirectedTrackEdge(this.Id + "A", this.A, new GridPoint(1, 0), _entry, Direction.East),
+                new DirectedTrackEdge(this.Id + "B", this.A, new GridPoint(0, 1), _entry, Direction.North),
+                new DirectedTrackEdge(this.Id + "C", this.A, new GridPoint(0, -1), _entry, Direction.South),
+                new DirectedTrackEdge(this.Id + "D", this.A, new GridPoint(-1, 0), _entry, Direction.West),
             };
         }
     }
@@ -107,14 +107,14 @@ public sealed class CoverageEdgeCasesTests {
             id: "T",
             center: new GridPoint(0, 0),
             radius: 1,
-            ports: new[] { new TurntablePort(new GridPoint(1, 0), Direction.East), new TurntablePort(new GridPoint(0, 1), Direction.North) },
+            ports: new[] { new TurntablePort(new GridPoint(1, 0), Direction.East), new TurntablePort(new GridPoint(-1, 0), Direction.West) },
             alignments: new[] { new TurntableAlignment(0, 1) }
         );
         var tt2 = new Turntable(
             id: "T",
             center: new GridPoint(10, 10),
             radius: 1,
-            ports: new[] { new TurntablePort(new GridPoint(11, 10), Direction.East), new TurntablePort(new GridPoint(10, 11), Direction.North) },
+            ports: new[] { new TurntablePort(new GridPoint(11, 10), Direction.East), new TurntablePort(new GridPoint(9, 10), Direction.West) },
             alignments: new[] { new TurntableAlignment(0, 1) }
         );
 
@@ -128,7 +128,7 @@ public sealed class CoverageEdgeCasesTests {
             id: "T",
             center: new GridPoint(0, 0),
             radius: 2,
-            ports: new[] { new TurntablePort(new GridPoint(2, 0), Direction.East), new TurntablePort(new GridPoint(0, 2), Direction.North) },
+            ports: new[] { new TurntablePort(new GridPoint(2, 0), Direction.East), new TurntablePort(new GridPoint(-2, 0), Direction.West) },
             alignments: new[] { new TurntableAlignment(0, 1) }
         );
 
@@ -142,7 +142,7 @@ public sealed class CoverageEdgeCasesTests {
             id: "T",
             center: new GridPoint(0, 0),
             radius: 1,
-            ports: new[] { new TurntablePort(new GridPoint(1, 0), Direction.East), new TurntablePort(new GridPoint(0, 1), Direction.North) },
+            ports: new[] { new TurntablePort(new GridPoint(1, 0), Direction.East), new TurntablePort(new GridPoint(-1, 0), Direction.West) },
             alignments: new[] { new TurntableAlignment(0, 1) }
         );
 
@@ -159,7 +159,7 @@ public sealed class CoverageEdgeCasesTests {
                 radius: 1,
                 ports: new[] {
                     new TurntablePort(new GridPoint(1, 0), Direction.North), // should be East
-                    new TurntablePort(new GridPoint(0, 1), Direction.North),
+                    new TurntablePort(new GridPoint(-1, 0), Direction.West),
                 },
                 alignments: new[] { new TurntableAlignment(0, 1) }
             )
@@ -175,7 +175,7 @@ public sealed class CoverageEdgeCasesTests {
                 radius: 1,
                 ports: new[] {
                     new TurntablePort(new GridPoint(1, 0), Direction.East),
-                    new TurntablePort(new GridPoint(0, 1), Direction.North),
+                    new TurntablePort(new GridPoint(-1, 0), Direction.West),
                 },
                 alignments: new[] { new TurntableAlignment(0, 0) }
             )
@@ -185,16 +185,16 @@ public sealed class CoverageEdgeCasesTests {
     [Fact]
     public void TrackLayout_EdgeComparer_Order_Correct() {
         var comparer = TrackLayout.EdgeComparer.Instance;
-        var a = new DirectedTrackEdge("A", new GridPoint(0, 0), new GridPoint(1, 0), Direction.East, Direction.East, Distance: 1);
-        var b = new DirectedTrackEdge("B", new GridPoint(0, 0), new GridPoint(0, 1), Direction.East, Direction.North, Distance: 0);
-        var c = new DirectedTrackEdge("C", new GridPoint(0, 0), new GridPoint(0, -1), Direction.East, Direction.South, Distance: 1);
-        var d = new DirectedTrackEdge("D", new GridPoint(0, 0), new GridPoint(0, -1), Direction.East, Direction.South, Distance: 1);
+        var a = new DirectedTrackEdge("A", new GridPoint(0, 0), new GridPoint(1, 0), Direction.East, Direction.East);
+        var b = new DirectedTrackEdge("B", new GridPoint(0, 0), new GridPoint(0, 1), Direction.East, Direction.North);
+        var c = new DirectedTrackEdge("C", new GridPoint(0, 0), new GridPoint(0, -1), Direction.East, Direction.South);
+        var d = new DirectedTrackEdge("D", new GridPoint(0, 0), new GridPoint(0, -1), Direction.East, Direction.South);
 
-        // distance branch
+        // straight-vs-curve branch
         Assert.True(comparer.Compare(a, b) < 0);
         // heading branch
         Assert.True(comparer.Compare(a, c) < 0);
-        // segment id branch (same distance+heading, different id)
+        // segment id branch (same length+heading, different id)
         Assert.True(comparer.Compare(c, d) < 0);
     }
 }

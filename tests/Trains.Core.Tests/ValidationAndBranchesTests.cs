@@ -12,11 +12,11 @@ public sealed class ValidationAndBranchesTests {
 
         Assert.Throws<ArgumentException>(() => new StraightSegment(" ", new GridPoint(0, 0), new GridPoint(1, 0)));
         Assert.Throws<ArgumentException>(() => new CurvedSegment("C", p, p, CurveBias.XFirst));
-        Assert.Throws<ArgumentOutOfRangeException>(() => new NegativeDistanceSegment("X", new GridPoint(0, 0), new GridPoint(1, 0)));
+        Assert.Throws<ArgumentException>(() => new BadIdSegment(" ", new GridPoint(0, 0), new GridPoint(1, 0)));
     }
 
-    private sealed class NegativeDistanceSegment : TrackSegment {
-        public NegativeDistanceSegment(string id, GridPoint a, GridPoint b) : base(id, a, b, distance: -1) { }
+    private sealed class BadIdSegment : TrackSegment {
+        public BadIdSegment(string id, GridPoint a, GridPoint b) : base(id, a, b) { }
         public override IReadOnlyList<DirectedTrackEdge> GetDirectedEdges() => Array.Empty<DirectedTrackEdge>();
     }
 
@@ -117,7 +117,7 @@ public sealed class ValidationAndBranchesTests {
 
         var car = new CarSpec(id: 0, length: 1, weight: 0);
         var state = new PuzzleState();
-        state.Placements.Add(0, new VehiclePlacement(0, new[] { new DirectedTrackEdge("BAD", new GridPoint(0, 0), new GridPoint(1, 0), Direction.East, Direction.East, 1) }));
+        state.Placements.Add(0, new VehiclePlacement(0, new[] { new DirectedTrackEdge("BAD", new GridPoint(0, 0), new GridPoint(1, 0), Direction.East, Direction.East) }));
 
         var puzzle = new ShuntingPuzzle(track, new RollingStockSpec[] { car }, state, new Goal(Array.Empty<SegmentGoal>()));
         var result = ShuntingEngine.TryApplyMove(puzzle, state, new ToggleCouplingMove(0, VehicleEnd.Back));

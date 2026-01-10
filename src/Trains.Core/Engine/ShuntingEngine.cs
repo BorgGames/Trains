@@ -99,18 +99,18 @@ public static class ShuntingEngine {
         if (!state.Placements.TryGetValue(move.EngineId, out _))
             return MoveResult.Fail(MoveError.InvalidState, "Selected engine has no placement.");
 
-        if (!TryBuildTrainChain(puzzle, state, move.EngineId, move.Direction, out var chain, out string? error))
+        if (!TryBuildOrientedTrain(puzzle, state, move.EngineId, move.Direction, out var orientedTrain, out string? error))
             return MoveResult.Fail(MoveError.NonLinearTrain, error!);
 
-        int totalWeight = chain.VehicleIds.Sum(id => puzzle.RollingStock[id].Weight);
+        int totalWeight = orientedTrain.VehicleIds.Sum(id => puzzle.RollingStock[id].Weight);
 
         int totalPower = 0;
-        foreach (var (vehicleId, headwardEnd) in chain.VehicleIds.Zip(chain.HeadwardEnds, (id, end) => (id, end))) {
+        foreach (var (vehicleId, headEnd) in orientedTrain.VehicleIds.Zip(orientedTrain.EndsTowardHead, (id, end) => (id, end))) {
             var rs = puzzle.RollingStock[vehicleId];
             if (!rs.IsEngine)
                 continue;
 
-            totalPower += headwardEnd == VehicleEnd.Front ? rs.ForwardPower : rs.BackwardPower;
+            totalPower += headEnd == VehicleEnd.Front ? rs.ForwardPower : rs.BackwardPower;
         }
 
         if (totalPower < totalWeight)
@@ -118,11 +118,11 @@ public static class ShuntingEngine {
 
         // Build an oriented path for the entire train (tail -> head).
         var trainEdges = new List<DirectedTrackEdge>();
-        for (int i = 0; i < chain.VehicleIds.Count; i++) {
-            int id = chain.VehicleIds[i];
-            VehicleEnd headwardEnd = chain.HeadwardEnds[i];
+        for (int i = 0; i < orientedTrain.VehicleIds.Count; i++) {
+            int id = orientedTrain.VehicleIds[i];
+            VehicleEnd headEnd = orientedTrain.EndsTowardHead[i];
             var placement = state.Placements[id];
-            trainEdges.AddRange(placement.GetEdgesInChainDirection(headwardEnd));
+            trainEdges.AddRange(placement.GetEdgesTowardHead(headEnd));
         }
 
         // Sanity: contiguity.
@@ -132,7 +132,7 @@ public static class ShuntingEngine {
         var occupancy = state.BuildSegmentOccupancy();
         var blocked = state.BuildBlockedNodes(puzzle);
 
-        var movingSet = new HashSet<int>(chain.VehicleIds);
+        var movingSet = new HashSet<int>(orientedTrain.VehicleIds);
         var otherOccupiedSegments = new HashSet<string>(StringComparer.Ordinal);
         foreach (var kvp in occupancy) {
             if (!movingSet.Contains(kvp.Value))
@@ -153,9 +153,9 @@ public static class ShuntingEngine {
         // Use a working copy for switch mutations; apply only on success.
         var switchStates = new Dictionary<TrackState, int>(state.SwitchStates);
 
-        // Advance the head by distance 1 (may include 0-distance edges), then traverse any following 0-distance edges "for free".
+        // Advance the head by length 1 (one edge).
         var headState = trainEdges[trainEdges.Count - 1].ToState;
-        if (!TryAdvanceByDistanceOne(
+        if (!TryAdvanceByLengthOne(
                 puzzle,
                 state.TurntableStates,
                 switchStates,
@@ -169,8 +169,8 @@ public static class ShuntingEngine {
             ))
             return MoveResult.Fail(advanceErrorCode, advanceError!);
 
-        // Advance the tail by distance 1, then traverse any following 0-distance edges "for free".
-        if (!TryRemoveFromTailByDistanceOne(trainEdges, out int removeCount, out string? removeError))
+        // Advance the tail by length 1 (one edge).
+        if (!TryRemoveFromTailByLengthOne(trainEdges, out int removeCount, out string? removeError))
             return MoveResult.Fail(MoveError.InvalidState, removeError!);
 
         var newTrainEdges = new List<DirectedTrackEdge>(trainEdges.Count - removeCount + appended.Count);
@@ -178,7 +178,7 @@ public static class ShuntingEngine {
         newTrainEdges.AddRange(appended);
 
         // Re-split back into vehicles.
-        if (!TryAssignTrainEdgesToVehicles(puzzle, state, chain, newTrainEdges, out string? splitError))
+        if (!TryAssignTrainEdgesToVehicles(puzzle, state, orientedTrain, newTrainEdges, out string? splitError))
             return MoveResult.Fail(MoveError.InvalidState, splitError!);
 
         state.SwitchStates.Clear();
@@ -188,7 +188,7 @@ public static class ShuntingEngine {
         return MoveResult.Success(state);
     }
 
-    private static bool TryAdvanceByDistanceOne(
+    private static bool TryAdvanceByLengthOne(
         ShuntingPuzzle puzzle,
         IReadOnlyDictionary<string, int> turntableStates,
         Dictionary<TrackState, int> switchStates,
@@ -200,127 +200,90 @@ public static class ShuntingEngine {
         out MoveError errorCode,
         out string? error
     ) {
-        appended = new List<DirectedTrackEdge>();
+        appended = new List<DirectedTrackEdge>(capacity: 1);
         errorCode = MoveError.Unknown;
         error = null;
 
-        int remaining = 1;
-        var current = start;
+        if (currentTrainEdges.Count == 0) {
+            errorCode = MoveError.InvalidState;
+            error = "Train has no segments.";
+            return false;
+        }
 
         var occupiedByTrain = new HashSet<string>(StringComparer.Ordinal);
         foreach (var e in currentTrainEdges)
             occupiedByTrain.Add(e.SegmentId);
 
-        // (state, remaining) is enough to detect 0-distance cycles.
-        var visited = new HashSet<(TrackState state, int remaining)>();
+        // Snake-style movement: moving by length 1 simultaneously removes the tail segment and adds a head segment.
+        // It's valid for the head to move into the segment that the tail is vacating this tick.
+        // This is well-defined because tail removal is exactly one edge (see TryRemoveFromTailByLengthOne).
+        string tailSegmentId = currentTrainEdges[0].SegmentId;
 
-        while (true) {
-            if (!visited.Add((current, remaining))) {
-                errorCode = MoveError.LoopDetected;
-                error = $"Detected a routing loop at {current} (remaining={remaining}).";
-                return false;
-            }
+        var options = puzzle.Track.GetOutgoingEdges(start, turntableStates);
+        if (options.Count == 0) {
+            errorCode = MoveError.NoTrackAhead;
+            error = $"No outgoing track from {start}.";
+            return false;
+        }
 
-            var options = puzzle.Track.GetOutgoingEdges(current, turntableStates);
-            if (options.Count == 0) {
-                errorCode = MoveError.NoTrackAhead;
-                error = $"No outgoing track from {current}.";
-                return false;
-            }
+        int index = 0;
+        if (options.Count > 1 && switchStates.TryGetValue(start, out int stored))
+            index = stored;
 
-            int index = 0;
-            if (options.Count > 1 && switchStates.TryGetValue(current, out int stored))
-                index = stored;
+        if (index < 0 || index >= options.Count) {
+            errorCode = MoveError.InvalidSwitch;
+            error = $"Switch state index {index} is out of range at {start} (options={options.Count}).";
+            return false;
+        }
 
-            if (index < 0 || index >= options.Count) {
-                errorCode = MoveError.InvalidSwitch;
-                error = $"Switch state index {index} is out of range at {current} (options={options.Count}).";
-                return false;
-            }
+        var edge = options[index];
 
-            var edge = options[index];
+        // Collision checks.
+        if (otherOccupiedSegments.Contains(edge.SegmentId)) {
+            errorCode = MoveError.Collision;
+            error = $"Collision on segment '{edge.SegmentId}'.";
+            return false;
+        }
 
-            // Collision checks.
-            if (otherOccupiedSegments.Contains(edge.SegmentId)) {
-                errorCode = MoveError.Collision;
-                error = $"Collision on segment '{edge.SegmentId}'.";
-                return false;
-            }
+        if (occupiedByTrain.Contains(edge.SegmentId) && !string.Equals(edge.SegmentId, tailSegmentId, StringComparison.Ordinal)) {
+            errorCode = MoveError.LoopDetected;
+            error = $"Move would cause the train to loop onto itself via segment '{edge.SegmentId}'.";
+            return false;
+        }
 
-            if (occupiedByTrain.Contains(edge.SegmentId)) {
-                errorCode = MoveError.LoopDetected;
-                error = $"Move would cause the train to loop onto itself via segment '{edge.SegmentId}'.";
-                return false;
-            }
+        if (otherBlockedNodes.Contains(edge.FromNode) || otherBlockedNodes.Contains(edge.ToNode)) {
+            errorCode = MoveError.Collision;
+            error = $"Move would pass through a node blocked by a long vehicle (edge '{edge.SegmentId}').";
+            return false;
+        }
 
-            if (otherBlockedNodes.Contains(edge.FromNode) || otherBlockedNodes.Contains(edge.ToNode)) {
-                errorCode = MoveError.Collision;
-                error = $"Move would pass through a node blocked by a long vehicle (edge '{edge.SegmentId}').";
-                return false;
-            }
+        appended.Add(edge);
 
-            appended.Add(edge);
-            occupiedByTrain.Add(edge.SegmentId);
-
-            if (options.Count > 1) {
-                // Automatically toggle switch after passing through.
-                switchStates[current] = (index + 1) % options.Count;
-            }
-
-            remaining -= edge.Distance;
-            current = edge.ToState;
-
-            // Once we've moved distance 1, keep traversing 0-distance edges "for free" (using the current routing selection).
-            if (remaining <= 0) {
-                var nextOptions = puzzle.Track.GetOutgoingEdges(current, turntableStates);
-                if (nextOptions.Count == 0)
-                    break;
-
-                int nextIndex = 0;
-                if (nextOptions.Count > 1 && switchStates.TryGetValue(current, out int stored2))
-                    nextIndex = stored2;
-
-                if (nextIndex < 0 || nextIndex >= nextOptions.Count) {
-                    errorCode = MoveError.InvalidSwitch;
-                    error = $"Switch state index {nextIndex} is out of range at {current} (options={nextOptions.Count}).";
-                    return false;
-                }
-
-                if (nextOptions[nextIndex].Distance != 0)
-                    break;
-            }
+        if (options.Count > 1) {
+            // Automatically toggle switch after passing through.
+            switchStates[start] = (index + 1) % options.Count;
         }
 
         return true;
     }
 
-    private static bool TryRemoveFromTailByDistanceOne(IReadOnlyList<DirectedTrackEdge> trainEdges, out int removeCount, out string? error) {
+    private static bool TryRemoveFromTailByLengthOne(IReadOnlyList<DirectedTrackEdge> trainEdges, out int removeCount, out string? error) {
         removeCount = 0;
         error = null;
 
-        int remaining = 1;
-        while (removeCount < trainEdges.Count && remaining > 0) {
-            var e = trainEdges[removeCount];
-            remaining -= e.Distance;
-            removeCount++;
-        }
-
-        if (remaining > 0) {
-            error = "Train is shorter than distance 1.";
+        if (trainEdges.Count == 0) {
+            error = "Train has no segments.";
             return false;
         }
 
-        // Traverse 0-distance edges "for free".
-        while (removeCount < trainEdges.Count && trainEdges[removeCount].Distance == 0)
-            removeCount++;
-
+        removeCount = 1;
         return true;
     }
 
     private static bool TryAssignTrainEdgesToVehicles(
         ShuntingPuzzle puzzle,
         PuzzleState state,
-        TrainChain chain,
+        OrientedTrain orientedTrain,
         List<DirectedTrackEdge> trainEdges,
         out string? error
     ) {
@@ -330,9 +293,9 @@ public static class ShuntingEngine {
         VehiclePlacementValidator.ValidateEdgeChain(trainEdges);
 
         int index = 0;
-        for (int i = 0; i < chain.VehicleIds.Count; i++) {
-            int vehicleId = chain.VehicleIds[i];
-            VehicleEnd headwardEnd = chain.HeadwardEnds[i];
+        for (int i = 0; i < orientedTrain.VehicleIds.Count; i++) {
+            int vehicleId = orientedTrain.VehicleIds[i];
+            VehicleEnd headEnd = orientedTrain.EndsTowardHead[i];
             var spec = puzzle.RollingStock[vehicleId];
 
             var edges = new List<DirectedTrackEdge>();
@@ -341,8 +304,7 @@ public static class ShuntingEngine {
             while (index < trainEdges.Count && units < spec.Length) {
                 var e = trainEdges[index++];
                 edges.Add(e);
-                if (e.Distance > 0)
-                    units++;
+                units++;
             }
 
             if (units != spec.Length) {
@@ -350,20 +312,13 @@ public static class ShuntingEngine {
                 return false;
             }
 
-            if (i == chain.VehicleIds.Count - 1) {
-                // Last vehicle receives any trailing 0-distance edges (e.g. finishing a move on a curve/turntable).
-                while (index < trainEdges.Count) {
-                    var extra = trainEdges[index++];
-                    if (extra.Distance != 0) {
-                        error = $"Unexpected extra unit segment '{extra.SegmentId}' after assigning all vehicles.";
-                        return false;
-                    }
-                    edges.Add(extra);
-                }
+            if (i == orientedTrain.VehicleIds.Count - 1 && index != trainEdges.Count) {
+                error = $"Unexpected extra unit segment '{trainEdges[index].SegmentId}' after assigning all vehicles.";
+                return false;
             }
 
             IReadOnlyList<DirectedTrackEdge> placementEdges;
-            if (headwardEnd == VehicleEnd.Front) {
+            if (headEnd == VehicleEnd.Front) {
                 placementEdges = edges;
             }
             else {
@@ -599,25 +554,32 @@ public static class ShuntingEngine {
         return true;
     }
 
-    private sealed class TrainChain {
-        public TrainChain(List<int> vehicleIds, List<VehicleEnd> headwardEnds) {
+    private sealed class OrientedTrain {
+        public OrientedTrain(List<int> vehicleIds, List<VehicleEnd> endsTowardHead) {
             VehicleIds = vehicleIds;
-            HeadwardEnds = headwardEnds;
+            EndsTowardHead = endsTowardHead;
         }
 
+        /// <summary>
+        /// Vehicle ids ordered from tail to head for the selected move direction.
+        /// </summary>
         public List<int> VehicleIds { get; }
-        public List<VehicleEnd> HeadwardEnds { get; }
+
+        /// <summary>
+        /// For each entry in <see cref="VehicleIds"/>, the vehicle end that faces toward the head (move direction).
+        /// </summary>
+        public List<VehicleEnd> EndsTowardHead { get; }
     }
 
-    private static bool TryBuildTrainChain(
+    private static bool TryBuildOrientedTrain(
         ShuntingPuzzle puzzle,
         PuzzleState state,
         int engineId,
         EngineMoveDirection moveDirection,
-        out TrainChain chain,
+        out OrientedTrain orientedTrain,
         out string? error
     ) {
-        chain = null!;
+        orientedTrain = null!;
         error = null;
 
         // Build component.
@@ -692,14 +654,14 @@ public static class ShuntingEngine {
         int tailmost = current;
 
         // Walk headward from tailmost to build full order.
-        var orderedVehicles = new List<int>();
-        var orderedHeadwardEnds = new List<VehicleEnd>();
+        var tailToHeadVehicles = new List<int>();
+        var tailToHeadEndsTowardHead = new List<VehicleEnd>();
 
         current = tailmost;
         currentHeadward = headwardByVehicle[current];
         while (true) {
-            orderedVehicles.Add(current);
-            orderedHeadwardEnds.Add(currentHeadward);
+            tailToHeadVehicles.Add(current);
+            tailToHeadEndsTowardHead.Add(currentHeadward);
 
             if (!TryGetCoupledNeighbor(state, current, currentHeadward, out int next, out VehicleEnd nextEnd))
                 break;
@@ -709,18 +671,18 @@ public static class ShuntingEngine {
             currentHeadward = nextEnd.Opposite();
         }
 
-        if (!orderedVehicles.Contains(engineId)) {
+        if (!tailToHeadVehicles.Contains(engineId)) {
             error = "Internal error: engine not found in constructed chain.";
             return false;
         }
 
         // Verify the chain covers the whole component.
-        if (orderedVehicles.Count != component.Count) {
+        if (tailToHeadVehicles.Count != component.Count) {
             error = "Train component ordering failed; possible cycle.";
             return false;
         }
 
-        chain = new TrainChain(orderedVehicles, orderedHeadwardEnds);
+        orientedTrain = new OrientedTrain(tailToHeadVehicles, tailToHeadEndsTowardHead);
         return true;
     }
 

@@ -6,18 +6,15 @@ namespace Trains.Track;
 /// Base type for a track segment connecting two grid nodes.
 /// </summary>
 public abstract class TrackSegment {
-    protected TrackSegment(string id, GridPoint a, GridPoint b, int distance) {
+    protected TrackSegment(string id, GridPoint a, GridPoint b) {
         if (string.IsNullOrWhiteSpace(id))
             throw new ArgumentException("Segment id must be non-empty.", nameof(id));
         if (a == b)
             throw new ArgumentException("Segment endpoints must be different.");
-        if (distance < 0)
-            throw new ArgumentOutOfRangeException(nameof(distance), distance, "Distance must be non-negative.");
 
         this.Id = id;
         this.A = a;
         this.B = b;
-        this.Distance = distance;
     }
 
     public string Id { get; }
@@ -25,9 +22,10 @@ public abstract class TrackSegment {
     public GridPoint B { get; }
 
     /// <summary>
-    /// The distance cost of traversing this segment (curves can be 0).
+    /// The length of traversing this segment.
+    /// Track segments are unit-length (1). Longer track should be represented as multiple segments.
     /// </summary>
-    public int Distance { get; }
+    public int Length => 1;
 
     public abstract IReadOnlyList<DirectedTrackEdge> GetDirectedEdges();
 }

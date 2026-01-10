@@ -132,28 +132,5 @@ public sealed class ShuntingEngineMoreTests {
         Assert.Equal(1, result.State.Couplings[0].Front!.Value.OtherVehicleId);
         Assert.Equal(0, result.State.Couplings[1].Back!.Value.OtherVehicleId);
     }
-
-    [Fact]
-    public void MoveEngine_ZeroDistanceCurveLoop_ReportsLoopDetected() {
-        // Construct a 0-distance cycle of curves:
-        // (0,0) E -> (1,1) N -> (0,2) W -> (-1,1) S -> (0,0) E
-        var segments = new TrackSegment[] {
-            new StraightSegment("S0", new GridPoint(-1, 0), new GridPoint(0, 0)),
-            new CurvedSegment("C1", new GridPoint(0, 0), new GridPoint(1, 1), CurveBias.XFirst),
-            new CurvedSegment("C2", new GridPoint(1, 1), new GridPoint(0, 2), CurveBias.YFirst),
-            new CurvedSegment("C3", new GridPoint(0, 2), new GridPoint(-1, 1), CurveBias.XFirst),
-            new CurvedSegment("C4", new GridPoint(-1, 1), new GridPoint(0, 0), CurveBias.YFirst),
-        };
-        var track = TrackLayout.Create(segments);
-
-        var engine = new EngineSpec(id: 0, length: 1, weight: 0, forwardPower: 1, backwardPower: 1);
-        var state = new PuzzleState();
-        state.Placements.Add(0, new VehiclePlacement(0, new[] { segments[0].GetDirectedEdges()[0] }));
-
-        var puzzle = new ShuntingPuzzle(track, new RollingStockSpec[] { engine }, state, new Goal(Array.Empty<SegmentGoal>()));
-        var result = ShuntingEngine.TryApplyMove(puzzle, state, new MoveEngineMove(engine.Id, EngineMoveDirection.Forward));
-
-        Assert.False(result.IsSuccess);
-        Assert.Equal(MoveError.LoopDetected, result.Error);
-    }
 }
+

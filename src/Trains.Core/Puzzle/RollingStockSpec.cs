@@ -20,7 +20,7 @@ public abstract class RollingStockSpec {
     public int Id { get; }
 
     /// <summary>
-    /// The length of the vehicle in "unit segments" (segments with distance 1).
+    /// The length of the vehicle in "unit segments" (segments with length 1).
     /// </summary>
     public int Length { get; }
 

@@ -32,8 +32,12 @@ public sealed class VehiclePlacement {
 
     public TrackState GetEndState(VehicleEnd end) => end == VehicleEnd.Back ? this.BackState : this.FrontState;
 
-    public IReadOnlyList<DirectedTrackEdge> GetEdgesInChainDirection(VehicleEnd headwardEnd) {
-        if (headwardEnd == VehicleEnd.Front)
+    /// <summary>
+    /// Returns the placement edges oriented so that traversal goes from tail to head for a particular move direction.
+    /// Pass the vehicle end that should face the head (move direction).
+    /// </summary>
+    public IReadOnlyList<DirectedTrackEdge> GetEdgesTowardHead(VehicleEnd headEnd) {
+        if (headEnd == VehicleEnd.Front)
             return this.Edges;
 
         var reversed = new DirectedTrackEdge[this.Edges.Count];
@@ -44,11 +48,9 @@ public sealed class VehiclePlacement {
     }
 
     public static int CountUnitEdges(IReadOnlyList<DirectedTrackEdge> edges) {
-        int count = 0;
-        foreach (var e in edges)
-            if (e.Distance > 0)
-                count++;
-        return count;
+        if (edges is null)
+            throw new ArgumentNullException(nameof(edges));
+        return edges.Count;
     }
 }
 

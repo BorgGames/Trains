@@ -130,19 +130,18 @@ public sealed class TrackLayout {
             throw new ArgumentException("Edge segment id must be non-empty.");
         if (edge.FromNode == edge.ToNode)
             throw new ArgumentException($"Edge '{edge.SegmentId}' must connect distinct nodes.");
-        if (edge.Distance < 0)
-            throw new ArgumentOutOfRangeException(nameof(edge.Distance), edge.Distance, "Distance must be non-negative.");
     }
 
     internal sealed class EdgeComparer : IComparer<DirectedTrackEdge> {
         internal static readonly EdgeComparer Instance = new();
 
         public int Compare(DirectedTrackEdge x, DirectedTrackEdge y) {
-            // Prefer distance-1 segments (straight) first to make switch indices stable across common layouts,
+            // Prefer straight edges (preserve heading) first to make switch indices stable across common layouts,
             // then by exit heading, then by segment id.
-            int dist = y.Distance.CompareTo(x.Distance);
-            if (dist != 0)
-                return dist;
+            bool xStraight = x.EntryHeading == x.ExitHeading;
+            bool yStraight = y.EntryHeading == y.ExitHeading;
+            if (xStraight != yStraight)
+                return yStraight.CompareTo(xStraight);
 
             int heading = x.ExitHeading.CompareTo(y.ExitHeading);
             if (heading != 0)
