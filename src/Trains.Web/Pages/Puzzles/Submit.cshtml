@@ -1,0 +1,26 @@
+@page "/p/submit"
+@model Trains.Web.Pages.Puzzles.SubmitModel
+@{
+    ViewData["Title"] = "Submit";
+}
+
+<h1>Submit</h1>
+
+<p>Submit a puzzle definition and a solution history JSON. The server verifies the current solution solves the puzzle before publishing.</p>
+
+@if (!string.IsNullOrWhiteSpace(Model.ErrorMessage)) {
+    <p><strong>Error:</strong> @Model.ErrorMessage</p>
+}
+
+<form method="post">
+    @Html.AntiForgeryToken()
+    <label>
+        Puzzle JSON
+        <textarea name="PuzzleJson" rows="12" cols="100">@Model.PuzzleJson</textarea>
+    </label>
+    <label>
+        Solution history JSON
+        <textarea name="SolutionHistoryJson" rows="12" cols="100">@Model.SolutionHistoryJson</textarea>
+    </label>
+    <button type="submit">Submit</button>
+</form>

@@ -14,6 +14,7 @@ public enum MoveError {
     InvalidCoupling = 8,
     NonLinearTrain = 9,
     LoopDetected = 10,
+    InvalidTurntable = 11,
 }
 
 public readonly record struct MoveResult(bool IsSuccess, MoveError Error, string? Message, PuzzleState? State) {

@@ -1,0 +1,29 @@
+﻿@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Trains";
+}
+
+<h1>Trains</h1>
+
+@if (User.Identity?.IsAuthenticated ?? false) {
+    <p>
+        Filter:
+        <a href="/?filter=all">all</a>
+        <a href="/?filter=unsolved">unsolved</a>
+        <a href="/?filter=solved">solved</a>
+    </p>
+}
+
+<p>Pick a puzzle (thumbnails only).</p>
+
+<div class="puzzle-grid">
+    @foreach (var p in Model.Puzzles) {
+        <a class="puzzle-card" href="/p/@p.Id">
+            @Html.Raw(p.ThumbnailSvg)
+            @if (p.IsSolved) {
+                <div class="badge">solved</div>
+            }
+        </a>
+    }
+</div>

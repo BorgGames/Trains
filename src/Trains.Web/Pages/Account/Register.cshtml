@@ -1,0 +1,30 @@
+@page "/account/register"
+@model Trains.Web.Pages.Account.RegisterModel
+@{
+    ViewData["Title"] = "Register";
+}
+
+<h1>Register</h1>
+
+@if (!string.IsNullOrWhiteSpace(Model.ErrorMessage)) {
+    <p><strong>Error:</strong> @Model.ErrorMessage</p>
+}
+
+<form method="post">
+    @Html.AntiForgeryToken()
+    <label>
+        Username
+        <input type="text" name="UserName" value="@Model.UserName" autocomplete="username" />
+    </label>
+    <label>
+        Password
+        <input type="password" name="Password" autocomplete="new-password" />
+    </label>
+    <label>
+        Confirm password
+        <input type="password" name="ConfirmPassword" autocomplete="new-password" />
+    </label>
+    <button type="submit">Create account</button>
+</form>
+
+<p><a href="/account/login">Login</a></p>

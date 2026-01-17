@@ -6,6 +6,7 @@ namespace Trains.Puzzle;
 public static class SolutionMoveKinds {
     public const string ToggleSwitch = "ToggleSwitch";
     public const string ToggleCoupling = "ToggleCoupling";
+    public const string RotateTurntable = "RotateTurntable";
     public const string MoveEngine = "MoveEngine";
 }
 
@@ -62,6 +63,8 @@ public sealed class SolutionMoveSnapshot {
     public int? EngineId { get; set; }
     public EngineMoveDirection? EngineDirection { get; set; }
 
+    public string? TurntableId { get; set; }
+
     public SolutionMove ToSolutionMove() {
         switch (Kind) {
             case SolutionMoveKinds.ToggleSwitch:
@@ -75,6 +78,11 @@ public sealed class SolutionMoveSnapshot {
                 return new ToggleCouplingSolutionMove(
                     VehicleId ?? throw new InvalidOperationException("VehicleId is required for ToggleCoupling."),
                     VehicleEnd ?? throw new InvalidOperationException("VehicleEnd is required for ToggleCoupling.")
+                );
+
+            case SolutionMoveKinds.RotateTurntable:
+                return new RotateTurntableSolutionMove(
+                    TurntableId ?? throw new InvalidOperationException("TurntableId is required for RotateTurntable.")
                 );
 
             case SolutionMoveKinds.MoveEngine:
@@ -101,6 +109,10 @@ public sealed class SolutionMoveSnapshot {
                 VehicleId = m.VehicleId,
                 VehicleEnd = m.End,
             },
+            RotateTurntableSolutionMove m => new SolutionMoveSnapshot {
+                Kind = SolutionMoveKinds.RotateTurntable,
+                TurntableId = m.TurntableId,
+            },
             MoveEngineSolutionMove m => new SolutionMoveSnapshot {
                 Kind = SolutionMoveKinds.MoveEngine,
                 EngineId = m.EngineId,
@@ -120,6 +132,7 @@ public sealed class SolutionMoveSnapshot {
             VehicleEnd = this.VehicleEnd,
             EngineId = this.EngineId,
             EngineDirection = this.EngineDirection,
+            TurntableId = this.TurntableId,
         };
     }
 }

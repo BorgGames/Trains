@@ -1,0 +1,129 @@
+@page "/p/{id:guid}"
+@model Trains.Web.Pages.Puzzles.PlayModel
+@{
+    ViewData["Title"] = "Trains";
+}
+
+<p><a href="/">Back</a></p>
+
+@if (User.Identity?.IsAuthenticated ?? false) {
+    <p>Signed in as @User.Identity!.Name</p>
+}
+
+@if (!string.IsNullOrWhiteSpace(Model.ErrorMessage)) {
+    <p><strong>Error:</strong> @Model.ErrorMessage</p>
+}
+
+@if (Model.IsSolved) {
+    <p><strong>Solved.</strong></p>
+}
+
+<div class="playfield">
+    @Html.Raw(Model.Svg)
+</div>
+
+<p>Moves: @Model.MoveCount</p>
+
+<h2>Move</h2>
+
+<form method="post" asp-page-handler="MoveEngine">
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="Payload" value="@Model.Payload" />
+    <label>
+        Engine
+        <select name="EngineId">
+            @foreach (var e in Model.EngineIds) {
+                <option value="@e">@e</option>
+            }
+        </select>
+    </label>
+    <label>
+        Direction
+        <select name="Direction">
+            <option value="Forward">Forward</option>
+            <option value="Backward">Backward</option>
+        </select>
+    </label>
+    <button type="submit">Move 1</button>
+</form>
+
+<form method="post" asp-page-handler="ToggleCoupling">
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="Payload" value="@Model.Payload" />
+    <label>
+        Vehicle
+        <select name="VehicleId">
+            @foreach (var v in Model.VehicleIds) {
+                <option value="@v">@v</option>
+            }
+        </select>
+    </label>
+    <label>
+        End
+        <select name="End">
+            <option value="Back">Back</option>
+            <option value="Front">Front</option>
+        </select>
+    </label>
+    <button type="submit">Toggle coupling</button>
+</form>
+
+<form method="post" asp-page-handler="ToggleSwitch">
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="Payload" value="@Model.Payload" />
+    <label>
+        Switch
+        <select name="SwitchKey">
+            @foreach (var k in Model.SwitchKeys) {
+                <option value="@k.Value">@k.Label</option>
+            }
+        </select>
+    </label>
+    <button type="submit">Toggle switch</button>
+</form>
+
+@if (Model.TurntableIds.Count > 0) {
+    <form method="post" asp-page-handler="RotateTurntable">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="Payload" value="@Model.Payload" />
+        <label>
+            Turntable
+            <select name="TurntableId">
+                @foreach (var id in Model.TurntableIds) {
+                    <option value="@id">@id</option>
+                }
+            </select>
+        </label>
+        <button type="submit">Rotate</button>
+    </form>
+}
+
+<form method="post" asp-page-handler="Reset">
+    @Html.AntiForgeryToken()
+    <button type="submit">Reset</button>
+</form>
+
+@if (User.Identity?.IsAuthenticated ?? false) {
+    <h2>Rate</h2>
+    <form method="post" asp-page-handler="Vote">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="Payload" value="@Model.Payload" />
+        <label>
+            Difficulty
+            <select name="Difficulty">
+                @for (var i = 1; i <= 5; i++) {
+                    <option value="@i" selected="@(Model.MyDifficulty == i)">@i</option>
+                }
+            </select>
+        </label>
+        <label>
+            Score
+            <select name="Score">
+                @for (var i = 1; i <= 5; i++) {
+                    <option value="@i" selected="@(Model.MyScore == i)">@i</option>
+                }
+            </select>
+        </label>
+        <button type="submit">Save</button>
+    </form>
+}

@@ -6,11 +6,17 @@
   </Configurations>
   <Folder Name="/repo/">
     <File Path="README.md" />
+    <Folder Name="docs/">
+      <File Path="docs/WEB_PLAN.md" />
+    </Folder>
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/Trains.Core/Trains.Core.csproj" />
+    <Project Path="src/Trains.Persistence/Trains.Persistence.csproj" />
+    <Project Path="src/Trains.Web/Trains.Web.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Trains.Core.Tests/Trains.Core.Tests.csproj" />
+    <Project Path="tests/Trains.Persistence.IntegrationTests/Trains.Persistence.IntegrationTests.csproj" />
   </Folder>
 </Solution>

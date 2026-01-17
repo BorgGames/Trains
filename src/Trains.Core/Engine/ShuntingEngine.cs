@@ -22,6 +22,7 @@ public static class ShuntingEngine {
             return move switch {
                 ToggleSwitchMove m => ApplyToggleSwitch(puzzle, next, m),
                 ToggleCouplingMove m => ApplyToggleCoupling(puzzle, next, m),
+                RotateTurntableMove m => ApplyRotateTurntable(puzzle, next, m),
                 MoveEngineMove m => ApplyMoveEngine(puzzle, next, m),
                 _ => MoveResult.Fail(MoveError.Unknown, $"Unknown move type '{move.GetType().FullName}'."),
             };
@@ -86,6 +87,36 @@ public static class ShuntingEngine {
 
         SetCoupling(couplings, move.End, new VehicleCoupling(otherVehicleId, otherEnd));
         SetCoupling(otherCouplings2, otherEnd, new VehicleCoupling(move.VehicleId, move.End));
+
+        return MoveResult.Success(state);
+    }
+
+    private static MoveResult ApplyRotateTurntable(ShuntingPuzzle puzzle, PuzzleState state, RotateTurntableMove move) {
+        if (string.IsNullOrWhiteSpace(move.TurntableId))
+            return MoveResult.Fail(MoveError.InvalidTurntable, "Turntable id must be non-empty.");
+
+        var tt = puzzle.Track.Turntables.FirstOrDefault(t => string.Equals(t.Id, move.TurntableId, StringComparison.Ordinal));
+        if (tt is null)
+            return MoveResult.Fail(MoveError.InvalidTurntable, $"Unknown turntable id '{move.TurntableId}'.");
+
+        string prefix = $"Turntable:{tt.Id}:";
+        foreach (var placement in state.Placements.Values) {
+            foreach (var e in placement.Edges) {
+                if (e.SegmentId.StartsWith(prefix, StringComparison.Ordinal))
+                    return MoveResult.Fail(MoveError.InvalidTurntable, "Turntable is occupied.");
+            }
+        }
+
+        int current = 0;
+        if (state.TurntableStates.TryGetValue(tt.Id, out int idx))
+            current = idx;
+        if (current < 0)
+            current = 0;
+        if (current >= tt.Alignments.Count)
+            current = tt.Alignments.Count - 1;
+
+        int next = (current + 1) % tt.Alignments.Count;
+        state.TurntableStates[tt.Id] = next;
 
         return MoveResult.Success(state);
     }

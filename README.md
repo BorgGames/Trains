@@ -12,6 +12,8 @@ It is inspired by the style of https://github.com/lostmsu/RoboZZle.Core/ (small,
 ## Projects
 
 - `src/Trains.Core/Trains.Core.csproj`: library (`netstandard2.0;net10.0`, C# 14)
+- `src/Trains.Persistence/Trains.Persistence.csproj`: EF Core model + PostgreSQL (`net10.0`)
+- `src/Trains.Web/Trains.Web.csproj`: Razor Pages website (`net10.0`)
 - `tests/Trains.Core.Tests/Trains.Core.Tests.csproj`: xUnit tests (`net10.0`)
 - `Trains.slnx`: solution file
 
@@ -65,7 +67,7 @@ Turntables are optional and are part of the track layout (`Trains.Track.Turntabl
   - Because the bridge is multiple unit segments, multiple trains can occupy different parts at once (e.g. a length-4 bridge can fit two length-2 trains).
 
 Turntable alignments are controlled by `Trains.Puzzle.PuzzleState.TurntableStates` (`turntableId -> alignmentIndex`).
-There is currently no dedicated “rotate turntable” move; callers can change `TurntableStates` directly (or model it as part of a higher-level game UI/solver).
+The engine also supports rotating a turntable to its next alignment (`RotateTurntableMove`); rotation is rejected if any train occupies the bridge segments.
 
 ## Rolling stock
 
@@ -103,6 +105,7 @@ Moves are in `Trains.Engine`:
 
 - `ToggleSwitchMove(TrackState switchKey)`
 - `ToggleCouplingMove(int vehicleId, VehicleEnd end)`
+- `RotateTurntableMove(string turntableId)`
 - `MoveEngineMove(int engineId, EngineMoveDirection direction)`
 
 The engine entry point is:
@@ -167,3 +170,36 @@ Console.WriteLine($"Solved: {puzzle.IsSolved(result.State!)}");
 ```
 
 For a more complete set of examples (curves, switches, turntables, and error cases), see the tests in `tests/Trains.Core.Tests/`.
+
+## Web app (play + submit puzzles)
+
+`Trains.Web` is a minimal Razor Pages UI (no JS frameworks, minimal CSS) backed by PostgreSQL:
+- Anyone can browse and play puzzles anonymously (`/` and `/p/{id}`).
+- With an account, you can filter by solved/unsolved, rate puzzles (difficulty+score 1..5), and submit puzzles (`/p/submit`).
+- Submitted puzzles must include a solution history; the server verifies the current solution solves the puzzle before publishing.
+
+### Run locally
+
+1. Start PostgreSQL and create a database (example name `trains`).
+2. Configure the connection string via either:
+   - `src/Trains.Web/appsettings.Development.json` (`ConnectionStrings:Trains`), or
+   - env var `ConnectionStrings__Trains`
+3. Apply migrations:
+
+   `dotnet tool run dotnet-ef database update --project src/Trains.Persistence --startup-project src/Trains.Web --context TrainsDbContext`
+
+4. Run:
+
+   `dotnet run --project src/Trains.Web`
+
+On first run the app seeds a sample puzzle.
+
+## PostgreSQL integration tests
+
+There is an opt-in integration test project that runs EF Core against a real PostgreSQL instance using a temporary database per test:
+
+- Project: `tests/Trains.Persistence.IntegrationTests/Trains.Persistence.IntegrationTests.csproj`
+- Enable: set `TRAINS_PG_TESTS=1`
+- Optional config: `TRAINS_PG_ADMIN` and `TRAINS_PG_BASE`
+
+See `tests/Trains.Persistence.IntegrationTests/README.md` for details.

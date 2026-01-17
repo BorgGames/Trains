@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - Trains</title>
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+</head>
+<body>
+    <header class="topbar">
+        <a href="/">Trains</a>
+        <span class="spacer"></span>
+        @if (User.Identity?.IsAuthenticated ?? false) {
+            <span>@User.Identity!.Name</span>
+            <a href="/p/submit">submit</a>
+            <a href="/account/logout">logout</a>
+        }
+        else {
+            <a href="/account/login">login</a>
+            <a href="/account/register">register</a>
+        }
+    </header>
+
+    <main>
+        @RenderBody()
+    </main>
+
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

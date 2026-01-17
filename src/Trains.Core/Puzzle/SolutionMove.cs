@@ -15,6 +15,7 @@ public abstract record SolutionMove {
         move switch {
             ToggleSwitchMove m => new ToggleSwitchSolutionMove(m.SwitchKey.Node.X, m.SwitchKey.Node.Y, m.SwitchKey.Heading),
             ToggleCouplingMove m => new ToggleCouplingSolutionMove(m.VehicleId, m.End),
+            RotateTurntableMove m => new RotateTurntableSolutionMove(m.TurntableId),
             MoveEngineMove m => new MoveEngineSolutionMove(m.EngineId, m.Direction),
             _ => throw new ArgumentException($"Unknown move type '{move.GetType().FullName}'.", nameof(move)),
         };
@@ -39,6 +40,19 @@ public sealed record ToggleCouplingSolutionMove : SolutionMove {
     public VehicleEnd End { get; }
 
     public override Move ToEngineMove() => new ToggleCouplingMove(this.VehicleId, this.End);
+}
+
+public sealed record RotateTurntableSolutionMove : SolutionMove {
+    public RotateTurntableSolutionMove(string turntableId) {
+        if (string.IsNullOrWhiteSpace(turntableId))
+            throw new ArgumentException("Turntable id must be non-empty.", nameof(turntableId));
+
+        this.TurntableId = turntableId;
+    }
+
+    public string TurntableId { get; }
+
+    public override Move ToEngineMove() => new RotateTurntableMove(this.TurntableId);
 }
 
 public sealed record MoveEngineSolutionMove : SolutionMove {
